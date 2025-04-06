@@ -130,27 +130,27 @@ diff --git a/kernel/nvidia/nv-mmap.c b/kernel/nvidia/nv-mmap.c
 index da01e46..140d53d 100644
 --- a/kernel/nvidia/nv-mmap.c
 +++ b/kernel/nvidia/nv-mmap.c
-@@ -411,7 +411,7 @@ int static nvidia_mmap_sysmem(
- #endif
+@@ -436,7 +436,7 @@ static int nvidia_mmap_sysmem(
  
+         if (
  #if defined(NV_VGPU_KVM_BUILD)
--        if (at->flags.guest)
-+        if (nv_vgpu_kvm_enable > 0 && at->flags.guest)
+-            at->flags.guest ||
++            (nv_vgpu_kvm_enable > 0 && at->flags.guest) ||
+ #endif
+             at->flags.carveout)
          {
-             ret = nv_remap_page_range(vma, start, at->page_table[j]->phys_addr,
-                                       PAGE_SIZE, vma->vm_page_prot);
 diff --git a/kernel/nvidia/nv-pci.c b/kernel/nvidia/nv-pci.c
 index 311d9fd..e3f45dd 100644
 --- a/kernel/nvidia/nv-pci.c
 +++ b/kernel/nvidia/nv-pci.c
-@@ -216,6 +216,7 @@ nv_pci_probe
+@@ -222,6 +222,7 @@ nv_pci_probe
      if (pci_dev->is_virtfn)
      {
  #if defined(NV_VGPU_KVM_BUILD)
 +      if (nv_vgpu_kvm_enable > 0) {
- 
  #if defined(NV_BUS_TYPE_HAS_IOMMU_OPS)
          if (pci_dev->dev.bus->iommu_ops == NULL) 
+ #else
 @@ -218,13 +219,15 @@ nv_pci_probe
  
          nv_kmem_cache_free_stack(sp);
