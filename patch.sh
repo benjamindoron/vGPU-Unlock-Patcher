@@ -639,21 +639,21 @@ kernel/nvidia/kern.ld 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
     applypatch ${TARGET} vgpu_unlock_hooks-510.patch
 fi
 
-#echo "FIXME: integrating runtime nv blob hooks"
-#mkdir -p ${TARGET}/kernel/unlock
-#$CP "$BASEDIR/patches/nv_hooks.c" ${TARGET}/kernel/unlock
-#echo 'NVIDIA_SOURCES += unlock/nv_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
-#echo 'OBJECT_FILES_NON_STANDARD_nv_hooks.o := y' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
-#sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
-#kernel/unlock/nv_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
-#echo
+echo "integrating runtime nv blob hooks"
+mkdir -p ${TARGET}/kernel/unlock
+$CP "$BASEDIR/patches/nv_hooks.c" ${TARGET}/kernel/unlock
+echo 'NVIDIA_SOURCES += unlock/nv_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
+echo 'OBJECT_FILES_NON_STANDARD_nv_hooks.o := y' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
+sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
+kernel/unlock/nv_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
+echo
 if [ -e patches/blob-${VER_BLOB}.diff ]; then
     blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.diff || exit 1
 fi
 if [ -e patches/vgpud-${VER_BLOB}.diff ]; then
     blobpatch ${TARGET}/nvidia-vgpud patches/vgpud-${VER_BLOB}.diff || exit 1
 fi
-#applypatch ${TARGET} setup-vup-hooks.patch
+applypatch ${TARGET} setup-vup-hooks.patch
 applypatchx ${TARGET} filter-for-nvrm-logs.patch
 [ -d ${TARGET}/kernel/nvidia-drm ] && applypatchx ${TARGET} test-kms-support.patch
 $NVGPLOPTPATCH && {
