@@ -653,6 +653,9 @@ if $DO_VGPU; then
 
     $REMAP_P2V && remap_P40_to_V100D ${TARGET}/vgpuConfig.xml
 
+    # TODO: This is a random assortment of cards. It's good to know these work, but I'd rather
+    # refer people to https://krutavshah.github.io/GPU_Virtualization-Wiki/overview.html#graphics-cards.
+    # However, this breaks the NixOS module.
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E07 0x0000	# RTX 2080 Ti
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E81 0x0000	# RTX 2080 super 8GB
