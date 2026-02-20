@@ -2,10 +2,10 @@
 
 BASEDIR=$(dirname $0)
 
-GNRL="NVIDIA-Linux-x86_64-580.95.05"
-VGPU="NVIDIA-Linux-x86_64-580.95.02-vgpu-kvm"
-GRID="NVIDIA-Linux-x86_64-580.95.05-grid"
-WSYS="NVIDIA-Windows-x86_64-581.42"
+GNRL="NVIDIA-Linux-x86_64-580.126.09"
+VGPU="NVIDIA-Linux-x86_64-580.126.08-vgpu-kvm"
+GRID="NVIDIA-Linux-x86_64-580.126.09-grid"
+WSYS="NVIDIA-Windows-x86_64-582.16"
 
 NVOSS=false
 DBGNVOSS=false
@@ -618,7 +618,6 @@ $TDMABUFEXPORT && {
     cp -p ${TARGET}/kernel-open/nvidia/nv-dmabuf.c ${TARGET}/kernel/nvidia/nv-dmabuf.c
     applypatch ${TARGET} test-dmabuf-export.patch
 }
-$DO_VGPU && applypatchx ${TARGET} vgpu-kvm-support-v6.17-irqbypass.patch
 $DO_VGPU && applypatchx ${TARGET} vgpu-kvm-support-v6.18-namespaced-variables.patch
 $DO_VGPU && applypatchx ${TARGET} vgpu-kvm-fault-path-acquires-mmap_lock.patch
 $DO_VGPU && applypatchx ${TARGET} vgpu-kvm-optional-vgpu-v2.patch

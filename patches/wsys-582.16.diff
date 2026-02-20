@@ -1,21 +1,21 @@
-dd8825a48ab6e8f2da6cb3dfa91107b38e81f2b3104e2b03c09c77a768064b3d
+acad01c5c502dad57af62d127825ec306f8f2512a55a31232b501b7e9f51b941
 
-# A little below the second instance of the "NVDUMPCONFIGSIG" string is a struct. A pointer to it
-# is passed as an argument to this function, which should not increment its own return value.
-000B03AF: 74 EB
-
+# A little below the second instance of the "NVDUMPCONFIGSIG" string is an object/struct. A pointer to it
+# is passed as an argument to this function, which should not increment a field in the object.
+000B072F: 74 EB
 # The caller of the above also has another callee. Similarly, it also must not increment its return value.
-0013C187: 74 EB
+0013C7E7: 74 EB
 
 # The function containing the signature "38 81 ? ? ? ? 0F 85 ? ? ? ? 38 81 ? ? ? ? 0F 85 ? ? ? ? 38 81 ? ? ? ?"
 # white-lists device IDs to support. Unconditionally return TRUE instead.
 # - This is primarily useful for testing in the context of Linux-KVM (perhaps passthrough), as guests use GRID-valid cards.
-00270313: 0F 90
-00270314: 85 E9
+00270E43: 0F 90
+00270E44: 85 E9
 
-# DriverEntry swaps two function pointers to stubs to other functions.
-069323BF: 74 EB
-069324EF: 74 EB
+# DriverEntry should not increment these two byte variables. This results in it swapping two function pointers
+# to stubs to other functions.
+069455BF: 74 EB
+069456EF: 74 EB
 
 # Raise the default, limit and fallback of "UnlicensedUnrestrictedStateTimeout" to that of "UnlicensedRestricted1StateTimeout".
 # - This only allows a little longer, use actual licensing (NLS or DLS) instead. This signature was last valid for 580.95.
@@ -34,4 +34,4 @@ dd8825a48ab6e8f2da6cb3dfa91107b38e81f2b3104e2b03c09c77a768064b3d
 #0038996A: 14 A0
 #0038996B: 00 05
 
-16aad376bfb54dd225eaa65fe43b522608a6ab39c0a18f60b93214538fab78a3
+bb79acd1cc9e62cc39f266b6fb9d0280f6d969a10e0e1f3a5cf508ea32edf306

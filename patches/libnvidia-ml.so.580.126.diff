@@ -1,38 +1,38 @@
-9933cfe943ca96d9b3c352221154dd0afd5ed5406fcb9a3d15935ff4f2c380a9
+7cf5b9e876f8a082616b5b632f426fdf2ac6fb2e04bfa90c5a3f4eebafe90910
 
 # Unconditionally return the NVML's version as the driver version, making merged builds work.
 # Replace bytes at `nvmlSystemGetDriverVersion` as follows:
 # - `lea rsi, ...`
-0004A290: 55 48
-0004A291: 48 8D
-0004A292: 89 35
+0004A2A0: 55 48
+0004A2A1: 48 8D
+0004A2A2: 89 35
 # - Obtain the relative, positive offset to the (valid) driver version within the NVML version string with
 #   `(idc.get_name_ea_simple("nptr") + 3) - idc.get_name_ea_simple("nvmlSystemGetDriverVersion") - 7`.
-0004A293: E5 BA
-0004A294: 41 32
-0004A295: 56 15
-0004A296: 41 00
+0004A2A3: E5 AA
+0004A2A4: 41 32
+0004A2A5: 56 15
+0004A2A6: 41 00
 # - `call ...`
-0004A297: 89 E8
+0004A2A7: 89 E8
 # - Obtain the relative, negative offset to the `_strcpy` function with
 #   `0x100000000 - idc.get_name_ea_simple("nvmlSystemGetDriverVersion") - 7 + ida_xref.get_first_cref_to(idc.get_name_ea_simple("strcpy")) - 5`.
-0004A298: F6 74
-0004A299: 41 0E
-0004A29A: 55 FD
-0004A29B: 49 FF
+0004A2A8: F6 64
+0004A2A9: 41 0E
+0004A2AA: 55 FD
+0004A2AB: 49 FF
 # - `xor eax, eax`
-0004A29C: 89 31
-0004A29D: FD C0
+0004A2AC: 89 31
+0004A2AD: FD C0
 # - `ret`
-0004A29E: 41 C3
+0004A2AE: 41 C3
 # - Pad the final byte(s) of the last instruction replaced to avoid confusing disassemblers.
-0004A29F: 54 CC
+0004A2AF: 54 CC
 
 # From: NULLderef <NULLderef@localhost.localdomain>
 # Subject: [PATCH] fix nvidia-smi process list in merged driver
 #
 # Identify `cConvertNvmlProcessInfoModeToRmId` using the debug strings,
 # and skip the code block that returns `*a5 = 1`, `*a4 = 0xA082`.
-000AB3EF: 74 EB
+000AB43F: 74 EB
 
-2213d53356cf08ba438a321ed18cf833a42ce3f4c84c10cf6711fbed1592c4ac
+52aeb3ae0412e6df6a0b9a7da0e01c4a0dfab2f0535471153f900eabe462cfca

@@ -1,16 +1,16 @@
-a2bf3cb0ab8c4d9f37ae74dd1265d5ccbf12a61799766fc3bba439cd7df6434d
+a74be3ca8f251cb1b209297bdcac3fcb9ec6522b604b2923683f3d99976fb898
 
 # The function with the signature "F3 0F 1E FA 41 56 41 55 53 48 83 ED ?"
 # white-lists device IDs to support. Unconditionally return TRUE instead.
-000EB824: 41 B8
-000EB825: 56 01
-000EB826: 41 00
-000EB827: 55 00
-000EB828: 53 00
-000EB829: 48 C3
-000EB82A: 83 CC
-000EB82B: ED CC
-000EB82C: 20 CC
+000EC384: 41 B8
+000EC385: 56 01
+000EC386: 41 00
+000EC387: 55 00
+000EC388: 53 00
+000EC389: 48 C3
+000EC38A: 83 CC
+000EC38B: ED CC
+000EC38C: 20 CC
 
 # Together, this amounts to `vup_sigpatch_kunlock_{old,new}4`. This signature was last valid for 580.95.
 #005F94EB: 85 90
@@ -19,4 +19,4 @@ a2bf3cb0ab8c4d9f37ae74dd1265d5ccbf12a61799766fc3bba439cd7df6434d
 #005F94EE: 85 E9
 #005F9593: 00 01
 
-b1fe3bb097c88a0fc3785f59d72e64d4680ad8901ba346dbb4ffccfab6391b46
+58856ec6cb08524201cf6cf10cd1e2bc593f74a5274bea82a7be4a56bf5e391f

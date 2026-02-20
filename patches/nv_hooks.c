@@ -35,11 +35,11 @@
 
 // TODO: Find some way to do this dynamically.
 #if defined(NV_VGPU_KVM_BUILD)
-#define RM_IOCTL_OFFSET	0xd559e0
-#define BLOB_TEXT_SIZE	0xe6e684
+#define RM_IOCTL_OFFSET	0xd5f5d0
+#define BLOB_TEXT_SIZE	0xe78274
 #elif defined(NV_GRID_BUILD)
-#define RM_IOCTL_OFFSET	0xd559e0
-#define BLOB_TEXT_SIZE	0xe6e684
+#define RM_IOCTL_OFFSET	0xd5fc30
+#define BLOB_TEXT_SIZE	0xe788d4
 #endif
 
 #if defined(NV_GRID_BUILD)
@@ -173,7 +173,7 @@ static void vup_hook_vupdevid_naked(void)
 		// If the return value is non-zero, overwrite the above.
 		"test   %eax, %eax      \n"
 		"cmovne %eax, %r15d     \n"
-		// Also set this local variable. This influences operations against a struct of device IDs with enums.
+		// Also override an above function's result. This influences operations against a struct of enum'd device IDs.
 		"mov    $1, %r13d       \n"
 		"pop    %r9             \n"
 		"pop    %r8             \n"
@@ -385,9 +385,9 @@ static int vup_sigpatch_kunlock_new5[] = { 0x0F, 0xB7, 0x87, -1, -1, -1, -1, 0x8
 static struct vup_patch_item vup_diff_kunlock[] = {
 	{ vup_sigpatch_kunlock_old0, vup_sigpatch_kunlock_new0, ARRAY_SIZE(vup_sigpatch_kunlock_old0) },
 	{ vup_sigpatch_kunlock_old1, vup_sigpatch_kunlock_new1, ARRAY_SIZE(vup_sigpatch_kunlock_old1) }, // FIXME/BUGBUG: Broken.
-	{ vup_sigpatch_kunlock_old2, vup_sigpatch_kunlock_new2, ARRAY_SIZE(vup_sigpatch_kunlock_old2) }, // FIXME/BUGBUG: Broken.
+	{ vup_sigpatch_kunlock_old2, vup_sigpatch_kunlock_new2, ARRAY_SIZE(vup_sigpatch_kunlock_old2) }, // FIXME/BUGBUG: Broken?!
 	{ vup_sigpatch_kunlock_old3, vup_sigpatch_kunlock_new3, ARRAY_SIZE(vup_sigpatch_kunlock_old3) },
-	{ vup_sigpatch_kunlock_old4, vup_sigpatch_kunlock_new4, ARRAY_SIZE(vup_sigpatch_kunlock_old4) }, // FIXME/BUGBUG: Broken.
+	{ vup_sigpatch_kunlock_old4, vup_sigpatch_kunlock_new4, ARRAY_SIZE(vup_sigpatch_kunlock_old4) }, // FIXME/BUGBUG: Broken?!
 	{ vup_sigpatch_kunlock_old5, vup_sigpatch_kunlock_new5, ARRAY_SIZE(vup_sigpatch_kunlock_old5) },
 };
 VUP_PATCH_DEF(kunlock, 1, 1, 1); // FIXME: Investigate *how* this works.

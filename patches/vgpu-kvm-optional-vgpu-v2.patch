@@ -151,9 +151,9 @@ index 311d9fd..e3f45dd 100644
  #if defined(NV_BUS_TYPE_HAS_IOMMU_OPS)
          if (pci_dev->dev.bus->iommu_ops == NULL) 
  #else
-@@ -218,13 +219,15 @@ nv_pci_probe
+@@ -291,13 +291,15 @@
+         }
  
-         nv_kmem_cache_free_stack(sp);
          return 0;
 -#else
 +      } else
@@ -163,7 +163,7 @@ index 311d9fd..e3f45dd 100644
                    NV_PCI_DOMAIN_NUMBER(pci_dev), NV_PCI_BUS_NUMBER(pci_dev),
                    NV_PCI_SLOT_NUMBER(pci_dev), PCI_FUNC(pci_dev->devfn));
  
-         goto failed;
+         return -1;
 -#endif /* NV_VGPU_KVM_BUILD */
 +      } /* NV_VGPU_KVM_BUILD */
      }
