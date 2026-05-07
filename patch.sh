@@ -619,6 +619,7 @@ $TDMABUFEXPORT && {
     applypatch ${TARGET} test-dmabuf-export.patch
 }
 $DO_VGPU && applypatchx ${TARGET} vgpu-kvm-support-v6.18-namespaced-variables.patch
+$DO_VGPU && applypatchx ${TARGET} vgpu-kvm-support-v6.19-pfn_address_space.patch
 $DO_VGPU && applypatchx ${TARGET} vgpu-kvm-fault-path-acquires-mmap_lock.patch
 $DO_VGPU && applypatchx ${TARGET} vgpu-kvm-optional-vgpu-v2.patch
 

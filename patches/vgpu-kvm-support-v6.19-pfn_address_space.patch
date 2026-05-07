@@ -1,0 +1,425 @@
+diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
+index 5dd89885419b..e09a72256380 100644
+--- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
++++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
+@@ -2420,6 +2420,69 @@ write_err:
+     return -EFAULT;
+ }
+ 
++#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
++
++static int pfn_memregion_offset(vgpu_dev_t *vgpu_dev,
++                                unsigned long pfn,
++                                pgoff_t *pfn_offset_in_region)
++{
++    unsigned long start_pfn, num_pages;
++
++    start_pfn = PHYS_PFN(vgpu_dev->hbm_info.hbm_addr);
++    num_pages = vgpu_dev->hbm_info.hbm_size >> PAGE_SHIFT;
++
++    if (pfn < start_pfn || pfn >= start_pfn + num_pages)
++        return -EFAULT;
++
++    *pfn_offset_in_region = pfn - start_pfn;
++
++    return 0;
++}
++
++static int nv_vgpu_vfio_pfn_to_vma_pgoff(struct vm_area_struct *vma,
++                                         unsigned long pfn,
++                                         pgoff_t *pgoff)
++{
++    vgpu_dev_t *vgpu_dev = vma->vm_private_data;
++    pgoff_t vma_offset_in_region = vma->vm_pgoff &
++            ((1U << (VFIO_PCI_OFFSET_SHIFT - PAGE_SHIFT)) - 1);
++    pgoff_t pfn_offset_in_region;
++    int ret;
++
++    ret = pfn_memregion_offset(vgpu_dev, pfn, &pfn_offset_in_region);
++    if (ret)
++            return ret;
++
++    /* Ensure PFN is not before VMA's start within the region */
++    if (pfn_offset_in_region < vma_offset_in_region)
++        return -EFAULT;
++
++    /* Calculate offset from VMA start */
++    *pgoff = vma->vm_pgoff +
++             (pfn_offset_in_region - vma_offset_in_region);
++
++    return 0;
++}
++
++static int
++nv_vgpu_vfio_register_pfn_range(vgpu_dev_t *vgpu_dev)
++{
++    struct vfio_device *core_vdev = &vgpu_dev->vfio_vdev;
++    unsigned long pfn, nr_pages;
++
++    pfn = PHYS_PFN(vgpu_dev->hbm_info.hbm_addr);
++    nr_pages = vgpu_dev->hbm_info.hbm_size >> PAGE_SHIFT;
++
++    vgpu_dev->pfn_address_space.node.start = pfn;
++    vgpu_dev->pfn_address_space.node.last = pfn + nr_pages - 1;
++    vgpu_dev->pfn_address_space.mapping = vgpu_dev->mapping;
++    vgpu_dev->pfn_address_space.pfn_to_vma_pgoff = nv_vgpu_vfio_pfn_to_vma_pgoff;
++
++    return register_pfn_address_space(&vgpu_dev->pfn_address_space);
++}
++
++#endif
++
+ int nv_vgpu_vfio_open(vgpu_dev_t *vgpu_dev)
+ {
+     NV_STATUS status = NV_OK;
+@@ -3036,25 +3099,17 @@ void nv_vgpu_vfio_close(vgpu_dev_t *vgpu_dev)
+ 
+         size = sizeof(*vgpu_dev->hbm_sparse_region) +
+                sizeof(*vgpu_dev->sparse->areas);
++
++#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
++        if (vgpu_dev->hbm_info.hbm_size)
++            unregister_pfn_address_space(&(vgpu_dev->pfn_address_space));
++#endif
++
+         NV_KFREE(vgpu_dev->hbm_sparse_region, size);
+ 
+         vgpu_dev->hbm_sparse_region = NULL;
+     }
+ 
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-    struct h_node *cur;
+-    unsigned long bkt;
+-    struct hlist_node *tmp_node;
+-
+-    unregister_pfn_address_space(&(vgpu_dev->pfn_address_space));
+-
+-    hash_for_each_safe(vgpu_dev->htbl, bkt, tmp_node, cur, node)
+-    {
+-        hash_del(&cur->node);
+-        vfree(cur);
+-    }
+-#endif
+-
+     if (vgpu_dev->sparse != NULL)
+     {
+         int size;
+@@ -4694,100 +4749,6 @@ static pgprot_t nv_vgpu_adjust_pgprot(pgprot_t vm_page_prot)
+     return nv_adjust_pgprot(prot);
+ }
+ 
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-
+-static void nvgpu_vfio_pci_pfn_memory_failure(struct pfn_address_space *pfn_space,
+-                                              unsigned long pfn)
+-{
+-    vgpu_dev_t *vgpu_dev = container_of(pfn_space,
+-                                        vgpu_dev_t, pfn_address_space);
+-    unsigned long mem_offset = pfn - pfn_space->node.start;
+-    struct h_node *ecc;
+-
+-    if (vgpu_dev == NULL)
+-        return;
+-
+-    if (mem_offset >= PHYS_PFN(vgpu_dev->hbm_info.hbm_size))
+-        return;
+-
+-    ecc = (struct h_node *)(vzalloc(sizeof(struct h_node)));
+-    if (ecc == NULL)
+-        return;
+-
+-    ecc->mem_offset = mem_offset;
+-    hash_add(vgpu_dev->htbl, &(ecc->node), ecc->mem_offset);
+-}
+-
+-struct pfn_address_space_ops nvgpu_vfio_pci_pas_ops = {
+-    .failure = nvgpu_vfio_pci_pfn_memory_failure,
+-};
+-
+-extern struct vfio_device *vfio_device_from_file(struct file *file);
+-
+-static vm_fault_t nvgpu_vfio_pci_fault(struct vm_fault *vmf)
+-{
+-    unsigned long mem_offset = vmf->pgoff - vmf->vma->vm_pgoff;
+-    struct vfio_device *core_vdev;
+-    phys_dev_t *pdev = NULL;
+-    vgpu_dev_t *vgpu_dev = NULL;
+-    bool found = false;
+-    struct h_node *cur;
+-
+-    if (!(vmf->vma->vm_file))
+-        goto error_exit;
+-
+-    core_vdev = vfio_device_from_file(vmf->vma->vm_file);
+-    if (!core_vdev)
+-       goto error_exit;
+-
+-
+-    pdev = container_of(core_vdev,
+-                        phys_dev_t, vpcdev.vdev);
+-    if (pdev == NULL)
+-        return VM_FAULT_NOPAGE;
+-
+-    vgpu_dev = pdev->vgpu_dev;
+-    if (vgpu_dev == NULL)
+-        return VM_FAULT_NOPAGE;
+-
+-    if (mem_offset < (vgpu_dev->hbm_info.hbm_size >> PAGE_SHIFT)) {
+-        /*
+-         * Check if the page is poisoned.
+-         */
+-        hash_for_each_possible(vgpu_dev->htbl, cur, node, mem_offset)
+-        {
+-           if (cur->mem_offset == mem_offset)
+-               return VM_FAULT_HWPOISON;
+-        }
+-    }
+-
+-error_exit:
+-    return VM_FAULT_ERROR;
+-}
+-
+-static const struct vm_operations_struct nvgpu_vfio_pci_mmap_ops = {
+-    .fault = nvgpu_vfio_pci_fault,
+-};
+-
+-static int
+-nv_vgpu_vfio_pci_register_pfn_range(vgpu_dev_t *vgpu_dev, struct vm_area_struct *vma)
+-{
+-    unsigned long nr_pages;
+-    int ret = 0;
+-
+-    nr_pages = (vma->vm_end - vma->vm_start)>> PAGE_SHIFT;
+-
+-    vgpu_dev->pfn_address_space.node.start = vma->vm_pgoff;
+-    vgpu_dev->pfn_address_space.node.last = vma->vm_pgoff + nr_pages - 1;
+-    vgpu_dev->pfn_address_space.ops = &nvgpu_vfio_pci_pas_ops;
+-    vgpu_dev->pfn_address_space.mapping = vma->vm_file->f_mapping;
+-
+-    ret = register_pfn_address_space(&(vgpu_dev->pfn_address_space));
+-
+-    return ret;
+-}
+-#endif
+-
+ int nv_vgpu_vfio_mmap(vgpu_dev_t *vgpu_dev, struct vm_area_struct *vma)
+ {
+     uint32_t index = 0;
+@@ -4851,13 +4812,6 @@ int nv_vgpu_vfio_mmap(vgpu_dev_t *vgpu_dev, struct vm_area_struct *vma)
+             {
+                 req_size = vgpu_dev->hbm_sparse_region->areas[0].size;
+                 pgoff = vgpu_dev->hbm_info.hbm_addr;
+-
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-                /*
+-                 * Initialize the hashtable tracking the poisoned pages.
+-                 */
+-                hash_init(vgpu_dev->htbl);
+-#endif
+             }
+         }
+         else
+@@ -4881,19 +4835,6 @@ int nv_vgpu_vfio_mmap(vgpu_dev_t *vgpu_dev, struct vm_area_struct *vma)
+         ret = remap_pfn_range(vma, vma->vm_start, pgoff, req_size, vma->vm_page_prot);
+         if (ret != 0)
+             goto mmap_exit;
+-
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-        if ((index == nv_bar2_lo_index(pdev->is_virtfn, vgpu_dev->is_bar0_64b)) &&
+-            (vgpu_dev->hbm_info.hbm_size != 0))
+-        {
+-            vma->vm_ops = &nvgpu_vfio_pci_mmap_ops;
+-
+-            ret = nv_vgpu_vfio_pci_register_pfn_range(vgpu_dev, vma);
+-            if (ret != 0)
+-                goto mmap_exit;
+-        }
+-#endif
+-
+     }
+     else
+     if (index == nv_bar1_lo_index(pdev->is_virtfn, vgpu_dev->is_bar0_64b))
+diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
+index 662c6d74a3ec..62fd23a35088 100644
+--- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
++++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
+@@ -51,14 +51,12 @@
+ #include <linux/irqbypass.h>
+ #include "nv-vgpu-vfio-interface.h"
+ 
+-#if defined(NV_USE_VFIO_PCI_CORE)
+-#include <linux/vfio_pci_core.h>
+-#endif
+-
+ #if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-#include <linux/bitmap.h>
+ #include <linux/memory-failure.h>
+-#include <linux/hashtable.h>
++#endif
++
++#if defined(NV_USE_VFIO_PCI_CORE)
++#include <linux/vfio_pci_core.h>
+ #endif
+ 
+ struct vgpu_dev_s;
+@@ -436,13 +434,6 @@ typedef struct
+     NvU64 hbm_size;
+ } hbm_info_t;
+ 
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT) && defined(NV_VGPU_KVM_BUILD)
+-struct h_node {
+-    unsigned long mem_offset;
+-    struct hlist_node node;
+-};
+-#endif
+-
+ typedef struct
+ {
+     NvU8   vgpu_name[VGPU_UUID_SIZE];
+@@ -566,7 +557,7 @@ typedef struct vgpu_dev_s
+     struct phys_dev_s *phys_dev;
+ #if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT) && defined(NV_VGPU_KVM_BUILD)
+     struct pfn_address_space pfn_address_space;
+-    DECLARE_HASHTABLE(htbl, 8);
++    struct address_space *mapping;
+ #endif
+     NvBool migration_enabled;
+     NvBool is_bar0_64b;
+diff --git a/kernel/nvidia-vgpu-vfio/vgpu-egm.c b/kernel/nvidia-vgpu-vfio/vgpu-egm.c
+index adcd6598396b..110250741849 100644
+--- a/kernel/nvidia-vgpu-vfio/vgpu-egm.c
++++ b/kernel/nvidia-vgpu-vfio/vgpu-egm.c
+@@ -33,11 +33,6 @@
+ #include <linux/egm.h>
+ #endif
+ 
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-#include <linux/bitmap.h>
+-#include <linux/memory-failure.h>
+-#endif
+-
+ #define MAX_EGM_NODES 256
+ 
+ struct egm_region {
+@@ -49,9 +44,6 @@ struct egm_region {
+     struct device device;
+     struct cdev cdev;
+     DECLARE_HASHTABLE(htbl, 0x10);
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-    struct pfn_address_space pfn_address_space;
+-#endif
+ };
+ 
+ struct bad_page_node {
+@@ -63,69 +55,6 @@ static dev_t dev;
+ static struct class *class;
+ static struct list_head egm_list;
+ 
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-static void
+-nv_vgpu_egm_pfn_memory_failure(struct pfn_address_space *pfn_space,
+-                   unsigned long pfn)
+-{
+-    struct egm_region *region =
+-        container_of(pfn_space, struct egm_region, pfn_address_space);
+-    unsigned long mem_offset = PFN_PHYS(pfn - pfn_space->node.start);
+-    struct bad_page_node *ecc;
+-
+-    if (mem_offset >= region->egmlength)
+-        return;
+-
+-    /*
+-     * MM has called to notify a poisoned page. Track that in the hastable.
+-     */
+-    ecc = (struct bad_page_node *)(vzalloc(sizeof(struct bad_page_node)));
+-    ecc->mem_offset = mem_offset;
+-    hash_add(region->htbl, &ecc->node, ecc->mem_offset);
+-}
+-
+-struct pfn_address_space_ops nv_vgpu_egm_pas_ops = {
+-    .failure = nv_vgpu_egm_pfn_memory_failure,
+-};
+-
+-static int
+-nv_vgpu_egm_register_pfn_range(struct egm_region *region,
+-                   struct vm_area_struct *vma)
+-{
+-    unsigned long nr_pages = region->egmlength >> PAGE_SHIFT;
+-
+-    region->pfn_address_space.node.start = vma->vm_pgoff;
+-    region->pfn_address_space.node.last = vma->vm_pgoff + nr_pages - 1;
+-    region->pfn_address_space.ops = &nv_vgpu_egm_pas_ops;
+-    region->pfn_address_space.mapping = vma->vm_file->f_mapping;
+-
+-    return register_pfn_address_space(&region->pfn_address_space);
+-}
+-
+-static vm_fault_t nv_vgpu_egm_fault(struct vm_fault *vmf)
+-{
+-    unsigned long mem_offset = PFN_PHYS(vmf->pgoff - vmf->vma->vm_pgoff);
+-    struct egm_region *region = vmf->vma->vm_file->private_data;
+-    struct bad_page_node *cur;
+-
+-    /*
+-     * Check if the page is poisoned.
+-     */
+-    if (mem_offset < region->egmlength) {
+-        hash_for_each_possible(region->htbl, cur, node, mem_offset) {
+-            if (cur->mem_offset == mem_offset)
+-                return VM_FAULT_HWPOISON;
+-        }
+-    }
+-
+-    return VM_FAULT_ERROR;
+-}
+-
+-static const struct vm_operations_struct nv_vgpu_egm_mmap_ops = {
+-     .fault = nv_vgpu_egm_fault,
+-};
+-#endif
+-
+ static int nv_vgpu_egm_open(struct inode *inode, struct file *file)
+ {
+     void *memaddr;
+@@ -160,10 +89,6 @@ static int nv_vgpu_egm_release(struct inode *inode, struct file *file)
+         return -EINVAL;
+ 
+     if (atomic_dec_and_test(&region->open_count)) {
+-
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-        unregister_pfn_address_space(&region->pfn_address_space);
+-#endif
+         file->private_data = NULL;
+     }
+ 
+@@ -187,11 +112,6 @@ static int nv_vgpu_egm_mmap(struct file *file, struct vm_area_struct *vma)
+ 
+     vma->vm_pgoff = PHYS_PFN(region->egmphys);
+ 
+-#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT)
+-    vma->vm_ops = &nv_vgpu_egm_mmap_ops;
+-
+-    ret = nv_vgpu_egm_register_pfn_range(region, vma);
+-#endif
+     return ret;
+ }
+ 
+diff --git a/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c b/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
+index 97a33ef0e27b..b7afc59f1b2d 100644
+--- a/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
++++ b/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
+@@ -194,6 +194,11 @@ static int nv_vfio_pci_open_device(struct vfio_device *core_vdev)
+         return -ENODEV;
+     }
+ 
++#if defined(NV_PFN_ADDRESS_SPACE_STRUCT_PRESENT) && defined(NV_VGPU_KVM_BUILD)
++    if (core_vdev->inode)
++        vgpu_dev->mapping = core_vdev->inode->i_mapping;
++#endif
++
+     ret = nv_vgpu_vfio_open(vgpu_dev);
+     if (ret)
+         return ret;
+-- 
+2.51.0
+
