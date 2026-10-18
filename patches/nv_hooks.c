@@ -35,11 +35,11 @@
 
 // TODO: Find some way to do this dynamically.
 #if defined(NV_VGPU_KVM_BUILD)
-#define RM_IOCTL_OFFSET	0xd5f5d0
-#define BLOB_TEXT_SIZE	0xe78274
+#define RM_IOCTL_OFFSET	0xd659b0
+#define BLOB_TEXT_SIZE	0xe7e864
 #elif defined(NV_GRID_BUILD)
-#define RM_IOCTL_OFFSET	0xd5fc30
-#define BLOB_TEXT_SIZE	0xe788d4
+#define RM_IOCTL_OFFSET	0xd659b0
+#define BLOB_TEXT_SIZE	0xe7e864
 #endif
 
 #if defined(NV_GRID_BUILD)
